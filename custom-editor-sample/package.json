@@ -34,7 +34,16 @@
 				"displayName": "Paw Draw",
 				"selector": [
 					{
-						"filenamePattern": "*.pawdraw"
+						"filenamePattern": "*.pt"
+					}
+				]
+			},
+			{
+				"viewType": "catCustoms.modelVis",
+				"displayName": "Model Vis",
+				"selector": [
+					{
+						"filenamePattern": "*.tttt"
 					}
 				]
 			}
@@ -60,5 +69,8 @@
 		"@typescript-eslint/parser": "^5.42.0",
 		"eslint": "^8.26.0",
 		"typescript": "^4.8.4"
+	},
+	"dependencies": {
+		"python-bridge": "^1.1.0"
 	}
 }
