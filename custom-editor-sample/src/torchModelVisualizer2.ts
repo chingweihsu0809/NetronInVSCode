@@ -309,15 +309,11 @@ export class PawDrawEditorProvider implements vscode.CustomEditorProvider<PawDra
 		// console.log(document.uri.path);
 		// console.log("hellp");
 		const url = await PawDrawEditorProvider.python`vis_model(${document.uri.path})`;
-		console.log(url);	
-		
-		// this.webviews.add("http://localhost:8080", webviewPanel);
 		
 		// // Setup initial content for the webview
 		webviewPanel.webview.options = {
 			enableScripts: true,
 		};
-
 
 		webviewPanel.webview.html = `
 		<!DOCTYPE html>
@@ -331,44 +327,11 @@ export class PawDrawEditorProvider implements vscode.CustomEditorProvider<PawDra
 			<iframe
 				width="1000"
 				height="1000" 
-				src="http://localhost:8080"
+				src="${url}"
 			></iframe>
 		</body>
 		</html>`;
 		
-		// webviewPanel.webview.onDidReceiveMessage(e => this.onMessage(document, e));
-
-
-
-		// // Add the webview to our internal set of active webviews
-		// this.webviews.add(document.uri, webviewPanel);
-
-		// Setup initial content for the webview
-		// webviewPanel.webview.options = {
-		// 	enableScripts: true,
-		// };
-		// webviewPanel.webview.html = this.getHtmlForWebview(webviewPanel.webview);
-
-		// webviewPanel.webview.onDidReceiveMessage(e => this.onMessage(document, e));
-
-		// // Wait for the webview to be properly ready before we init
-		// webviewPanel.webview.onDidReceiveMessage(e => {
-		// 	if (e.type === 'ready') {
-		// 		if (document.uri.scheme === 'untitled') {
-		// 			this.postMessage(webviewPanel, 'init', {
-		// 				untitled: true,
-		// 				editable: true,
-		// 			});
-		// 		} else {
-		// 			const editable = vscode.workspace.fs.isWritableFileSystem(document.uri.scheme);
-
-		// 			this.postMessage(webviewPanel, 'init', {
-		// 				value: document.documentData,
-		// 				editable,
-		// 			});
-		// 		}
-		// 	}
-		// });
 	}
 
 	private readonly _onDidChangeCustomDocument = new vscode.EventEmitter<vscode.CustomDocumentEditEvent<PawDrawDocument>>();
