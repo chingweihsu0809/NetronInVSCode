@@ -212,10 +212,11 @@ export class TorchModelVisualizer implements vscode.CustomEditorProvider<ModelFi
 		private readonly _context: vscode.ExtensionContext
 	) { 
 		TorchModelVisualizer.python.ex`
-		import sys, os
-		visualizer_root = os.environ['TORCH_VIS_ROOT']
-		sys.path.append(visualizer_root)
-		from vis_model import vis_model	
+		import netron
+
+		def vis_model(path):
+			addr, port = netron.start(path.lstrip('/'), browse=False)
+			return 'http://' + str(addr) + ':' + str(port)
 	`;
 	}
 

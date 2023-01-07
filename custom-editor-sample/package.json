@@ -1,7 +1,7 @@
 {
-	"name": "cat-customs",
-	"displayName": "Cat Customs",
-	"description": "Custom Editor API Samples",
+	"name": "torch-vis",
+	"displayName": "Torch Model Visualizer",
+	"description": "Visualization Tool for Torch Models based on Netron",
 	"version": "0.0.1",
 	"publisher": "vscode-samples",
 	"private": true,
