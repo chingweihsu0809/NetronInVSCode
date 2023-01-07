@@ -3,12 +3,12 @@
 	"displayName": "Torch Model Visualizer",
 	"description": "Visualization Tool for Torch Models based on Netron",
 	"version": "0.0.1",
-	"publisher": "vscode-samples",
+	"publisher": "chingweihsu0809",
 	"private": true,
 	"license": "MIT",
 	"repository": {
 		"type": "git",
-		"url": "https://github.com/Microsoft/vscode-extension-samples"
+		"url": "https://github.com/chingweihsu0809/TorchVSCodeVisTool"
 	},
 	"engines": {
 		"vscode": "^1.74.0"

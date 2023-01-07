@@ -1,25 +1,32 @@
-# Cat Customs - Custom Editor API Samples
+# PyTorch Models VSCode Visualizer
 
-![Paw draw editor ](documentation/example.png)
+This extension allows users to visualize saved PyTorch models within Visual Studio Code.
 
-Demonstrates VS Code's [custom editor API](https://code.visualstudio.com/api/extension-guides/custom-editors) using two custom editors:
+## Disclaimer
 
-- Cat Scratch — Uses the finalized custom text editor api to provide a custom editor for `.cscratch` files (which are just json files)
-- Paw Draw - Uses the binary custom editor api to provide a custom editor for `.pawdraw` files (which are just png files with a different file extension).
+Please note that this extension is developed by a student and is still in its early stages. It may contain many bugs, any feedback or bug reports are welcomed. Thank you for trying out this extension!
 
-## VS Code API
+## Features
 
-### `vscode` module
+- Load and visualize saved PyTorch models within Visual Studio Code
+- View detailed information about each model component
 
-- [`window.registerCustomEditorProvider`](https://code.visualstudio.com/api/references/vscode-api#window.registerCustomEditorProvider)
-- [`CustomTextEditor`](https://code.visualstudio.com/api/references/vscode-api#CustomTextEditor)
-- [`CustomEditor`](https://code.visualstudio.com/api/references/vscode-api#CustomEditor)
+## Requirements
 
-## Running the example
+- `npm install python-bridge`
+- `pip install netron`
 
-- Open this example in VS Code 1.46+
+## Running the code
+
+- Open this repo in VS Code
 - `npm install`
-- `npm run watch` or `npm run compile`
 - `F5` to start debugging
+- Click on a saved pytorch model to see the following.
 
-Open the example files from the `exampleFiles` directory.
+## Credits
+
+This extension was built using
+
+- [netron](https://github.com/lutzroeder/netron)
+- [node-python-bride](https://github.com/Submersible/node-python-bridge)
+- [vscode-extension-samples](https://github.com/microsoft/vscode-extension-samples)
