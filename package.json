@@ -1,13 +1,51 @@
 {
-	"name": "vsc-extension-samples",
-	"publisher": "Microsoft",
+	"name": "torch-vis",
+	"displayName": "Torch Model Visualizer",
+	"description": "Visualization Tool for Torch Models based on Netron",
 	"version": "0.0.1",
+	"publisher": "vscode-samples",
+	"private": true,
+	"license": "MIT",
+	"repository": {
+		"type": "git",
+		"url": "https://github.com/Microsoft/vscode-extension-samples"
+	},
+	"engines": {
+		"vscode": "^1.74.0"
+	},
+	"categories": [
+		"Other"
+	],
+	"activationEvents": [],
+	"main": "./out/extension.js",
+	"contributes": {
+		"customEditors": [
+			{
+				"viewType": "torchVis.plot",
+				"displayName": "Plot Torch Model",
+				"selector": [
+					{
+						"filenamePattern": "*.pt"
+					}
+				]
+			}
+		]
+	},
 	"scripts": {
-		"compile": "node .scripts/run-script.js compile",
-		"lint": "node .scripts/run-script.js lint",
-		"install": "node .scripts/run-command.js npm install",
-		"auditFix": "node .scripts/run-command.js npm audit fix",
-		"update-readme": "node .scripts/update-readme.js",
-		"update-lsif": "node .scripts/update-lsif.js"
+		"vscode:prepublish": "npm run compile",
+		"compile": "tsc -p ./",
+		"lint": "eslint \"src/**/*.ts\"",
+		"watch": "tsc -w -p ./"
+	},
+	"devDependencies": {
+		"@types/node": "^16.11.7",
+		"@types/vscode": "^1.73.0",
+		"@typescript-eslint/eslint-plugin": "^5.42.0",
+		"@typescript-eslint/parser": "^5.42.0",
+		"eslint": "^8.26.0",
+		"typescript": "^4.8.4"
+	},
+	"dependencies": {
+		"python-bridge": "^1.1.0"
 	}
 }
