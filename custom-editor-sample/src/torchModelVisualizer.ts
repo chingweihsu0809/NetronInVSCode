@@ -1,237 +1,387 @@
 import * as vscode from 'vscode';
-import { getNonce } from './util';
+import { Disposable, disposeAll } from './dispose';
 
 import { pythonBridge } from 'python-bridge';
 
-function fromPython(pycode = {}) {
-	return JSON.stringify(pycode);
+/**
+ * Define the type of edits used in model files.
+ */
+interface CustomEdit {
+	readonly foo: string;
 }
 
-function toJavaScript(pystr = "") {
-	return JSON.parse(pystr);
-}
-
-function fromPy(pycode = {}) {
-	return toJavaScript(fromPython(pycode));
+interface ModelFileDelegate {
+	getFileData(): Promise<Uint8Array>;
 }
 
 /**
- * Provider for cat scratch editors.
- * 
- * Cat scratch editors are used for `.cscratch` files, which are just json files.
- * To get started, run this extension and open an empty `.cscratch` file in VS Code.
- * 
- * This provider demonstrates:
- * 
- * - Setting up the initial webview for a custom editor.
- * - Loading scripts and styles in a custom editor.
- * - Synchronizing changes between a text document and a custom editor.
+ * Define the document (the data model) used for model files.
  */
-export class TorchModelVisualizerProvider implements vscode.CustomTextEditorProvider {
+class ModelFile extends Disposable implements vscode.CustomDocument {
 
-	public static register(context: vscode.ExtensionContext): vscode.Disposable {
-		const provider = new TorchModelVisualizerProvider(context);
-		const providerRegistration = vscode.window.registerCustomEditorProvider(TorchModelVisualizerProvider.viewType, provider);
-		return providerRegistration;
+	static async create(
+		uri: vscode.Uri,
+		backupId: string | undefined,
+		delegate: ModelFileDelegate,
+	): Promise<ModelFile | PromiseLike<ModelFile>> {
+		// If we have a backup, read that. Otherwise read the resource from the workspace
+		const dataFile = typeof backupId === 'string' ? vscode.Uri.parse(backupId) : uri;
+		const fileData = await ModelFile.readFile(dataFile);
+		return new ModelFile(uri, fileData, delegate);
 	}
 
-	private static readonly viewType = 'catCustoms.modelVis';
+	private static async readFile(uri: vscode.Uri): Promise<Uint8Array> {
+		if (uri.scheme === 'untitled') {
+			return new Uint8Array();
+		}
+		return new Uint8Array(await vscode.workspace.fs.readFile(uri));
+	}
 
-	private static readonly scratchCharacters = ['😸', '😹', '😺', '😻', '😼', '😽', '😾', '🙀', '😿', '🐱'];
+	private readonly _uri: vscode.Uri;
+
+	private _documentData: Uint8Array;
+	private _edits: Array<CustomEdit> = [];
+	private _savedEdits: Array<CustomEdit> = [];
+
+	private readonly _delegate: ModelFileDelegate;
+
+	private constructor(
+		uri: vscode.Uri,
+		initialContent: Uint8Array,
+		delegate: ModelFileDelegate
+	) {
+		super();
+		this._uri = uri;
+		this._documentData = initialContent;
+		this._delegate = delegate;
+	}
+
+	public get uri() { return this._uri; }
+
+	public get documentData(): Uint8Array { return this._documentData; }
+
+	private readonly _onDidDispose = this._register(new vscode.EventEmitter<void>());
+	/**
+	 * Fired when the document is disposed of.
+	 */
+	public readonly onDidDispose = this._onDidDispose.event;
+
+	private readonly _onDidChangeDocument = this._register(new vscode.EventEmitter<{
+		readonly content?: Uint8Array;
+		readonly edits: readonly CustomEdit[];
+	}>());
+	/**
+	 * Fired to notify webviews that the document has changed.
+	 */
+	public readonly onDidChangeContent = this._onDidChangeDocument.event;
+
+	private readonly _onDidChange = this._register(new vscode.EventEmitter<{
+		readonly label: string,
+		undo(): void,
+		redo(): void,
+	}>());
+	/**
+	 * Fired to tell VS Code that an edit has occurred in the document.
+	 *
+	 * This updates the document's dirty indicator.
+	 */
+	public readonly onDidChange = this._onDidChange.event;
+
+	/**
+	 * Called by VS Code when there are no more references to the document.
+	 *
+	 * This happens when all editors for it have been closed.
+	 */
+	dispose(): void {
+		this._onDidDispose.fire();
+		super.dispose();
+	}
+
+	/**
+	 * Called when the user edits the document in a webview.
+	 *
+	 * This fires an event to notify VS Code that the document has been edited.
+	 */
+	makeEdit(edit: CustomEdit) {
+		this._edits.push(edit);
+
+		this._onDidChange.fire({
+			label: 'Foo',
+			undo: async () => {
+				this._edits.pop();
+				this._onDidChangeDocument.fire({
+					edits: this._edits,
+				});
+			},
+			redo: async () => {
+				this._edits.push(edit);
+				this._onDidChangeDocument.fire({
+					edits: this._edits,
+				});
+			}
+		});
+	}
+
+	/**
+	 * Called by VS Code when the user saves the document.
+	 */
+	async save(cancellation: vscode.CancellationToken): Promise<void> {
+		await this.saveAs(this.uri, cancellation);
+		this._savedEdits = Array.from(this._edits);
+	}
+
+	/**
+	 * Called by VS Code when the user saves the document to a new location.
+	 */
+	async saveAs(targetResource: vscode.Uri, cancellation: vscode.CancellationToken): Promise<void> {
+		const fileData = await this._delegate.getFileData();
+		if (cancellation.isCancellationRequested) {
+			return;
+		}
+		await vscode.workspace.fs.writeFile(targetResource, fileData);
+	}
+
+	/**
+	 * Called by VS Code when the user calls `revert` on a document.
+	 */
+	async revert(_cancellation: vscode.CancellationToken): Promise<void> {
+		const diskContent = await ModelFile.readFile(this.uri);
+		this._documentData = diskContent;
+		this._edits = this._savedEdits;
+		this._onDidChangeDocument.fire({
+			content: diskContent,
+			edits: this._edits,
+		});
+	}
+
+	/**
+	 * Called by VS Code to backup the edited document.
+	 *
+	 * These backups are used to implement hot exit.
+	 */
+	async backup(destination: vscode.Uri, cancellation: vscode.CancellationToken): Promise<vscode.CustomDocumentBackup> {
+		await this.saveAs(destination, cancellation);
+
+		return {
+			id: destination.toString(),
+			delete: async () => {
+				try {
+					await vscode.workspace.fs.delete(destination);
+				} catch {
+					// noop
+				}
+			}
+		};
+	}
+}
+
+/**
+ * Provider for model editors.
+ *
+ * Model editors are used for `.pt` and `.pth` files, which are PyTorch model files.
+ *
+ */
+export class TorchModelVisualizer implements vscode.CustomEditorProvider<ModelFile> {
+
+	public static register(context: vscode.ExtensionContext): vscode.Disposable {
+
+		return vscode.window.registerCustomEditorProvider(
+			TorchModelVisualizer.viewType,
+			new TorchModelVisualizer(context),
+			{
+				// For this demo extension, we enable `retainContextWhenHidden` which keeps the
+				// webview alive even when it is not visible. You should avoid using this setting
+				// unless is absolutely required as it does have memory overhead.
+				webviewOptions: {
+					retainContextWhenHidden: true,
+				},
+				supportsMultipleEditorsPerDocument: false,
+			});
+	}
+
+	private static readonly viewType = 'torchVis.plot';
+
+	/**
+	 * Tracks all known webviews
+	 */
+	private readonly webviews = new WebviewCollection();
 
 	private static python = pythonBridge({stdio: ['pipe', 'pipe', 'pipe'],});
 
 	constructor(
-		private readonly context: vscode.ExtensionContext
-	) {
-		TorchModelVisualizerProvider.python.ex`
-			import sys
-			sys.path.append("C:/Users/user/OneDrive/Current courses/Advanced Software Engineering/vscode-extension-samples/custom-editor-sample/src")
-			from vis_model import vis_model	
-		`;
+		private readonly _context: vscode.ExtensionContext
+	) { 
+		TorchModelVisualizer.python.ex`
+		import sys, os
+		visualizer_root = os.environ['TORCH_VIS_ROOT']
+		sys.path.append(visualizer_root)
+		from vis_model import vis_model	
+	`;
 	}
 
-	/**
-	 * Called when our custom editor is opened.
-	 * 
-	 * 
-	 */
-	public async resolveCustomTextEditor(
-		document: vscode.TextDocument,
+	//#region CustomEditorProvider
+
+	async openCustomDocument(
+		uri: vscode.Uri,
+		openContext: { backupId?: string },
+		_token: vscode.CancellationToken
+	): Promise<ModelFile> {
+		const document: ModelFile = await ModelFile.create(uri, openContext.backupId, {
+			getFileData: async () => {
+				const webviewsForDocument = Array.from(this.webviews.get(document.uri));
+				if (!webviewsForDocument.length) {
+					throw new Error('Could not find webview to save for');
+				}
+				const panel = webviewsForDocument[0];
+				const response = await this.postMessageWithResponse<number[]>(panel, 'getFileData', {});
+				return new Uint8Array(response);
+			}
+		});
+
+		const listeners: vscode.Disposable[] = [];
+
+		listeners.push(document.onDidChange(e => {
+			// Tell VS Code that the document has been edited by the use.
+			this._onDidChangeCustomDocument.fire({
+				document,
+				...e,
+			});
+		}));
+
+		listeners.push(document.onDidChangeContent(e => {
+			// Update all webviews when the document changes
+			for (const webviewPanel of this.webviews.get(document.uri)) {
+				this.postMessage(webviewPanel, 'update', {
+					edits: e.edits,
+					content: e.content,
+				});
+			}
+		}));
+
+		document.onDidDispose(() => disposeAll(listeners));
+
+		return document;
+	}
+
+	async resolveCustomEditor(
+		document: ModelFile,
 		webviewPanel: vscode.WebviewPanel,
 		_token: vscode.CancellationToken
 	): Promise<void> {
-		// Setup initial content for the webview
+
+		const url = await TorchModelVisualizer.python`vis_model(${document.uri.path})`;
 		
-		// const json = this.getDocumentAsJson(document);
-
-		// console.log(fromPy(await TorchModelVisualizerProvider.python`vis_model()`));
-		// console.log(document.fileName);
-		console.log("hello");
-		console.log(fromPy(await TorchModelVisualizerProvider.python`vis_model(document.fileName)`));
-
-		/*
+		// // Setup initial content for the webview
 		webviewPanel.webview.options = {
 			enableScripts: true,
 		};
-		webviewPanel.webview.html = this.getHtmlForWebview(webviewPanel.webview);
 
-		function updateWebview() {
-			webviewPanel.webview.postMessage({
-				type: 'update',
-				text: document.getText(),
-			});
-		}
-
-		// Hook up event handlers so that we can synchronize the webview with the text document.
-		//
-		// The text document acts as our model, so we have to sync change in the document to our
-		// editor and sync changes in the editor back to the document.
-		// 
-		// Remember that a single text document can also be shared between multiple custom
-		// editors (this happens for example when you split a custom editor)
-
-		const changeDocumentSubscription = vscode.workspace.onDidChangeTextDocument(e => {
-			if (e.document.uri.toString() === document.uri.toString()) {
-				updateWebview();
-			}
-		});
-
-		// Make sure we get rid of the listener when our editor is closed.
-		webviewPanel.onDidDispose(() => {
-			changeDocumentSubscription.dispose();
-		});
-
-		// Receive message from the webview.
-		webviewPanel.webview.onDidReceiveMessage(e => {
-			switch (e.type) {
-				case 'add':
-					this.addNewScratch(document);
-					return;
-
-				case 'delete':
-					this.deleteScratch(document, e.id);
-					return;
-			}
-		});
-
-		updateWebview();
-		*/
+		webviewPanel.webview.html = this.getHtmlForWebview(url);
+		
 	}
 
 	/**
-	 * Get the static html used for the editor webviews.
+	 * Get the static HTML used for in our editor's webviews.
 	 */
-	private getHtmlForWebview(webview: vscode.Webview): string {
+	private getHtmlForWebview(url: string): string {
 		// Local path to script and css for the webview
-		const scriptUri = webview.asWebviewUri(vscode.Uri.joinPath(
-			this.context.extensionUri, 'media', 'modelVis.js'));
 
-		const styleResetUri = webview.asWebviewUri(vscode.Uri.joinPath(
-			this.context.extensionUri, 'media', 'reset.css'));
-
-		const styleVSCodeUri = webview.asWebviewUri(vscode.Uri.joinPath(
-			this.context.extensionUri, 'media', 'vscode.css'));
-
-		const styleMainUri = webview.asWebviewUri(vscode.Uri.joinPath(
-			this.context.extensionUri, 'media', 'modelVis.css'));
-
-		// Use a nonce to whitelist which scripts can be run
-		const nonce = getNonce();
-
-		return /* html */`
+		return `
 			<!DOCTYPE html>
 			<html lang="en">
 			<head>
 				<meta charset="UTF-8">
-
-				<!--
-				Use a content security policy to only allow loading images from https or from our extension directory,
-				and only allow scripts that have a specific nonce.
-				-->
-				<meta http-equiv="Content-Security-Policy" content="default-src 'none'; img-src ${webview.cspSource}; style-src ${webview.cspSource}; script-src 'nonce-${nonce}';">
-
 				<meta name="viewport" content="width=device-width, initial-scale=1.0">
-
-				<link href="${styleResetUri}" rel="stylesheet" />
-				<link href="${styleVSCodeUri}" rel="stylesheet" />
-				<link href="${styleMainUri}" rel="stylesheet" />
-
-				<title>Cat Scratch</title>
+				<title>Model Visualization</title>
 			</head>
 			<body>
-				<div class="notes">
-					<div class="add-button">
-						<button>Scratch!</button>
-					</div>
-				</div>
-				
-				<script nonce="${nonce}" src="${scriptUri}"></script>
+				<iframe
+					width="800"
+					height="800" 
+					src="${url}"
+				></iframe>
 			</body>
 			</html>`;
 	}
 
+	private readonly _onDidChangeCustomDocument = new vscode.EventEmitter<vscode.CustomDocumentEditEvent<ModelFile>>();
+	public readonly onDidChangeCustomDocument = this._onDidChangeCustomDocument.event;
+
+	public saveCustomDocument(document: ModelFile, cancellation: vscode.CancellationToken): Thenable<void> {
+		return document.save(cancellation);
+	}
+
+	public saveCustomDocumentAs(document: ModelFile, destination: vscode.Uri, cancellation: vscode.CancellationToken): Thenable<void> {
+		return document.saveAs(destination, cancellation);
+	}
+
+	public revertCustomDocument(document: ModelFile, cancellation: vscode.CancellationToken): Thenable<void> {
+		return document.revert(cancellation);
+	}
+
+	public backupCustomDocument(document: ModelFile, context: vscode.CustomDocumentBackupContext, cancellation: vscode.CancellationToken): Thenable<vscode.CustomDocumentBackup> {
+		return document.backup(context.destination, cancellation);
+	}
+
+	//#endregion
+
+	private _requestId = 1;
+	private readonly _callbacks = new Map<number, (response: any) => void>();
+
+	private postMessageWithResponse<R = unknown>(panel: vscode.WebviewPanel, type: string, body: any): Promise<R> {
+		const requestId = this._requestId++;
+		const p = new Promise<R>(resolve => this._callbacks.set(requestId, resolve));
+		panel.webview.postMessage({ type, requestId, body });
+		return p;
+	}
+
+	private postMessage(panel: vscode.WebviewPanel, type: string, body: any): void {
+		panel.webview.postMessage({ type, body });
+	}
+
+	private onMessage(document: ModelFile, message: any) {
+		switch (message.type) {
+			case 'response':
+				{
+					const callback = this._callbacks.get(message.requestId);
+					callback?.(message.body);
+					return;
+				}
+		}
+	}
+}
+
+/**
+ * Tracks all webviews.
+ */
+class WebviewCollection {
+
+	private readonly _webviews = new Set<{
+		readonly resource: string;
+		readonly webviewPanel: vscode.WebviewPanel;
+	}>();
+
 	/**
-	 * Add a new scratch to the current document.
+	 * Get all known webviews for a given uri.
 	 */
-	private addNewScratch(document: vscode.TextDocument) {
-		const json = this.getDocumentAsJson(document);
-		const character = TorchModelVisualizerProvider.scratchCharacters[Math.floor(Math.random() * TorchModelVisualizerProvider.scratchCharacters.length)];
-		json.scratches = [
-			...(Array.isArray(json.scratches) ? json.scratches : []),
-			{
-				id: getNonce(),
-				text: character,
-				created: Date.now(),
+	public *get(uri: vscode.Uri): Iterable<vscode.WebviewPanel> {
+		const key = uri.toString();
+		for (const entry of this._webviews) {
+			if (entry.resource === key) {
+				yield entry.webviewPanel;
 			}
-		];
-
-		return this.updateTextDocument(document, json);
-	}
-
-	/**
-	 * Delete an existing scratch from a document.
-	 */
-	private deleteScratch(document: vscode.TextDocument, id: string) {
-		const json = this.getDocumentAsJson(document);
-		if (!Array.isArray(json.scratches)) {
-			return;
-		}
-
-		json.scratches = json.scratches.filter((note: any) => note.id !== id);
-
-		return this.updateTextDocument(document, json);
-	}
-
-	/**
-	 * Try to get a current document as json text.
-	 */
-	private getDocumentAsJson(document: vscode.TextDocument): any {
-		const text = document.getText();
-		if (text.trim().length === 0) {
-			return {};
-		}
-
-		try {
-			return JSON.parse(text);
-		} catch {
-			throw new Error('Could not get document as json. Content is not valid json');
 		}
 	}
 
 	/**
-	 * Write out the json to a given document.
+	 * Add a new webview to the collection.
 	 */
-	private updateTextDocument(document: vscode.TextDocument, json: any) {
-		const edit = new vscode.WorkspaceEdit();
+	public add(uri: vscode.Uri, webviewPanel: vscode.WebviewPanel) {
+		const entry = { resource: uri.toString(), webviewPanel };
+		this._webviews.add(entry);
 
-		// Just replace the entire document every time for this example extension.
-		// A more complete extension should compute minimal edits instead.
-		edit.replace(
-			document.uri,
-			new vscode.Range(0, 0, document.lineCount, 0),
-			JSON.stringify(json, null, 2));
-
-		return vscode.workspace.applyEdit(edit);
+		webviewPanel.onDidDispose(() => {
+			this._webviews.delete(entry);
+		});
 	}
 }

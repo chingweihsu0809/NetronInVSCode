@@ -21,38 +21,13 @@
 	"contributes": {
 		"customEditors": [
 			{
-				"viewType": "catCustoms.catScratch",
-				"displayName": "Cat Scratch",
-				"selector": [
-					{
-						"filenamePattern": "*.cscratch"
-					}
-				]
-			},
-			{
-				"viewType": "catCustoms.pawDraw",
-				"displayName": "Paw Draw",
+				"viewType": "torchVis.plot",
+				"displayName": "Plot Torch Model",
 				"selector": [
 					{
 						"filenamePattern": "*.pt"
 					}
 				]
-			},
-			{
-				"viewType": "catCustoms.modelVis",
-				"displayName": "Model Vis",
-				"selector": [
-					{
-						"filenamePattern": "*.tttt"
-					}
-				]
-			}
-		],
-		"commands": [
-			{
-				"command": "catCustoms.pawDraw.new",
-				"title": "Create new Paw Draw Document",
-				"category": "Paw Draw"
 			}
 		]
 	},
