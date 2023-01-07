@@ -1,7 +1,7 @@
 import * as vscode from 'vscode';
-import { TorchModelVisualizer } from './torchModelVisualizer';
+import { ModelVisualizer } from './modelVisualizer';
 
 export function activate(context: vscode.ExtensionContext) {
 	// Register our custom editor providers
-	context.subscriptions.push(TorchModelVisualizer.register(context));
+	context.subscriptions.push(ModelVisualizer.register(context));
 }

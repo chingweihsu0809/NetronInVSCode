@@ -1,14 +1,14 @@
 {
-	"name": "torch-vis",
-	"displayName": "Torch Model Visualizer",
-	"description": "Visualization Tool for Torch Models based on Netron",
+	"name": "netron-vscode",
+	"displayName": "Netron in VSCode",
+	"description": "Unofficial implmentation of visualizing ML Models in VSCode using Netron",
 	"version": "0.0.1",
 	"publisher": "chingweihsu0809",
 	"private": true,
 	"license": "MIT",
 	"repository": {
 		"type": "git",
-		"url": "https://github.com/chingweihsu0809/TorchVSCodeVisTool"
+		"url": "https://github.com/chingweihsu0809/NetronInVSCode"
 	},
 	"engines": {
 		"vscode": "^1.74.0"
@@ -21,11 +21,29 @@
 	"contributes": {
 		"customEditors": [
 			{
-				"viewType": "torchVis.plot",
-				"displayName": "Plot Torch Model",
+				"viewType": "Netron.plot",
+				"displayName": "Netron Plot",
 				"selector": [
 					{
 						"filenamePattern": "*.pt"
+					},
+					{
+						"filenamePattern": "*.pth"
+					},
+					{
+						"filenamePattern": "*.pb"
+					},
+					{
+						"filenamePattern": "*.mlmodel"
+					},
+					{
+						"filenamePattern": "*.tflite"
+					},
+					{
+						"filenamePattern": "*.onnx"
+					},
+					{
+						"filenamePattern": "*.h5"
 					}
 				]
 			}

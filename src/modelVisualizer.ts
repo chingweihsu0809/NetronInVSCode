@@ -178,16 +178,16 @@ class ModelFile extends Disposable implements vscode.CustomDocument {
 /**
  * Provider for model editors.
  *
- * Model editors are used for `.pt` and `.pth` files, which are PyTorch model files.
+ * Model editors are used for ML model files.
  *
  */
-export class TorchModelVisualizer implements vscode.CustomEditorProvider<ModelFile> {
+export class ModelVisualizer implements vscode.CustomEditorProvider<ModelFile> {
 
 	public static register(context: vscode.ExtensionContext): vscode.Disposable {
 
 		return vscode.window.registerCustomEditorProvider(
-			TorchModelVisualizer.viewType,
-			new TorchModelVisualizer(context),
+			ModelVisualizer.viewType,
+			new ModelVisualizer(context),
 			{
 				// For this demo extension, we enable `retainContextWhenHidden` which keeps the
 				// webview alive even when it is not visible. You should avoid using this setting
@@ -199,7 +199,7 @@ export class TorchModelVisualizer implements vscode.CustomEditorProvider<ModelFi
 			});
 	}
 
-	private static readonly viewType = 'torchVis.plot';
+	private static readonly viewType = 'Netron.plot';
 
 	/**
 	 * Tracks all known webviews
@@ -211,7 +211,7 @@ export class TorchModelVisualizer implements vscode.CustomEditorProvider<ModelFi
 	constructor(
 		private readonly _context: vscode.ExtensionContext
 	) { 
-		TorchModelVisualizer.python.ex`
+		ModelVisualizer.python.ex`
 		import netron
 
 		def vis_model(path):
@@ -270,7 +270,7 @@ export class TorchModelVisualizer implements vscode.CustomEditorProvider<ModelFi
 		_token: vscode.CancellationToken
 	): Promise<void> {
 
-		const url = await TorchModelVisualizer.python`vis_model(${document.uri.path})`;
+		const url = await ModelVisualizer.python`vis_model(${document.uri.path})`;
 		
 		// // Setup initial content for the webview
 		webviewPanel.webview.options = {
