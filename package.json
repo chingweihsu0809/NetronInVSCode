@@ -2,7 +2,7 @@
 	"name": "netron-vscode",
 	"displayName": "Netron in VSCode",
 	"description": "Unofficial implmentation of visualizing ML Models in VSCode using Netron",
-	"version": "0.0.2",
+	"version": "0.0.3",
 	"publisher": "chingweihsu0809",
 	"private": true,
 	"license": "MIT",
