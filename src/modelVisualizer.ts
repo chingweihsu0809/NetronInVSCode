@@ -212,10 +212,13 @@ export class ModelVisualizer implements vscode.CustomEditorProvider<ModelFile> {
 		private readonly _context: vscode.ExtensionContext
 	) { 
 		ModelVisualizer.python.ex`
+		import sys
 		import netron
-
+		import platform
 		def vis_model(path):
-			addr, port = netron.start(path.lstrip('/'), browse=False)
+			if platform.system() == 'Windows':
+				path = path.lstrip('/')
+			addr, port = netron.start(path, browse=False)
 			return 'http://' + str(addr) + ':' + str(port)
 	`;
 	}
@@ -271,7 +274,7 @@ export class ModelVisualizer implements vscode.CustomEditorProvider<ModelFile> {
 	): Promise<void> {
 
 		const url = await ModelVisualizer.python`vis_model(${document.uri.path})`;
-		
+		console.log(url);
 		// // Setup initial content for the webview
 		webviewPanel.webview.options = {
 			enableScripts: true,
